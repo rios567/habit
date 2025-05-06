@@ -24,21 +24,26 @@
       transition: background 0.3s, color 0.3s;
     }
     h1 { font-size: 1.5em; text-align: center; margin-bottom: 0.2em; }
-    #summary { text-align: center; color: var(--text-color); margin-bottom: 1em; }
+    #summary { text-align: center; margin-bottom: 1em; }
     .project {
       background: var(--card-color);
       padding: 1em;
       margin: 1em 0;
       border-radius: 8px;
       box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      position: relative;
     }
     .counts {
       font-size: 0.9em;
-      color: var(--text-color);
       margin-top: 0.5em;
     }
-    button {
+    .jar {
       margin-top: 0.5em;
+      font-size: 1.5em;
+      line-height: 1.5;
+      min-height: 2em;
+    }
+    button {
       padding: 0.4em 0.8em;
       font-size: 0.85em;
       border: none;
@@ -59,8 +64,35 @@
     }
     input {
       padding: 0.4em;
-      margin-right: 0.5em;
-      width: 60%;
+      margin: 0.3em 0.3em 0 0;
+      width: 40%;
+    }
+    .punch-button {
+      position: absolute;
+      bottom: 0.8em;
+      right: 0.8em;
+      font-size: 1.1em;
+      transform: scale(1.2);
+      background-color: #0077cc;
+    }
+    .move-buttons {
+      position: absolute;
+      top: 0.5em;
+      right: 0.5em;
+      display: flex;
+      flex-direction: row;
+      gap: 6px;
+    }
+    .move-button {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background-color: #aaa;
+      font-size: 1em;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
   </style>
 </head>
@@ -70,12 +102,13 @@
   <div id="summary">今日合計: 0 回　|　総合計: 0 回</div>
   <div>
     <input id="newProjectName" placeholder="项目名を入力"/>
+    <input id="newProjectEmoji" placeholder="emoji（例：🌟）"/>
     <button onclick="addProject()">追加</button>
   </div>
   <div id="projectList"></div>
 
   <script>
-    const PROJECTS_KEY = "punchProjects_v3";
+    const PROJECTS_KEY = "punchProjects_v7";
     const DARK_KEY = "punchDarkMode";
     const RESET_HOUR = 5;
 
@@ -83,24 +116,25 @@
 
     function getTodayKey() {
       const now = new Date();
-      let date = new Date(now);
       if (now.getHours() < RESET_HOUR) {
-        date.setDate(now.getDate() - 1);
+        now.setDate(now.getDate() - 1);
       }
-      return date.toISOString().split('T')[0];
-    }
-
-    function addProject() {
-      const name = document.getElementById("newProjectName").value.trim();
-      if (!name) return;
-      projects.push({ name, total: 0, todayCounts: {} });
-      saveProjects();
-      document.getElementById("newProjectName").value = "";
-      render();
+      return now.toISOString().split('T')[0];
     }
 
     function saveProjects() {
       localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
+    }
+
+    function addProject() {
+      const name = document.getElementById("newProjectName").value.trim();
+      const emoji = document.getElementById("newProjectEmoji").value.trim() || "🍬";
+      if (!name) return;
+      projects.push({ name, emoji, total: 0, todayCounts: {} });
+      saveProjects();
+      document.getElementById("newProjectName").value = "";
+      document.getElementById("newProjectEmoji").value = "";
+      render();
     }
 
     function punch(index) {
@@ -116,7 +150,7 @@
       const today = getTodayKey();
       const proj = projects[index];
       if ((proj.todayCounts[today] || 0) > 0) {
-        proj.total = Math.max(0, proj.total - 1);
+        proj.total--;
         proj.todayCounts[today]--;
         saveProjects();
         render();
@@ -124,12 +158,13 @@
     }
 
     function rename(index) {
-      const newName = prompt("新しい名前を入力:", projects[index].name);
-      if (newName !== null && newName.trim() !== "") {
-        projects[index].name = newName.trim();
-        saveProjects();
-        render();
-      }
+      const proj = projects[index];
+      const newName = prompt("新しい名前を入力:", proj.name);
+      const newEmoji = prompt("emoji を入力（空欄なら现状維持）:", proj.emoji);
+      if (newName) proj.name = newName.trim();
+      if (newEmoji) proj.emoji = newEmoji.trim();
+      saveProjects();
+      render();
     }
 
     function remove(index) {
@@ -142,7 +177,7 @@
 
     function moveUp(index) {
       if (index > 0) {
-        [projects[index - 1], projects[index]] = [projects[index], projects[index - 1]];
+        [projects[index], projects[index - 1]] = [projects[index - 1], projects[index]];
         saveProjects();
         render();
       }
@@ -159,7 +194,6 @@
     function render() {
       const today = getTodayKey();
       let todaySum = 0, totalSum = 0;
-
       const container = document.getElementById("projectList");
       container.innerHTML = "";
 
@@ -171,14 +205,19 @@
         const div = document.createElement("div");
         div.className = "project";
         div.innerHTML = `
-          <strong>${proj.name}</strong>
+          <strong>${proj.name}（${proj.emoji}）</strong>
           <div class="counts">今日: ${todayCount} 回　|　総計: ${proj.total} 回</div>
-          <button onclick="punch(${i})">打卡</button>
-          <button class="undo" onclick="undo(${i})">撤销</button>
-          <button class="rename" onclick="rename(${i})">重命名</button>
-          <button class="delete" onclick="remove(${i})">删除</button>
-          <button onclick="moveUp(${i})">↑</button>
-          <button onclick="moveDown(${i})">↓</button>
+          <div class="jar">${proj.emoji.repeat(todayCount)}</div>
+          <div class="move-buttons">
+            <button class="move-button" onclick="moveUp(${i})">↑</button>
+            <button class="move-button" onclick="moveDown(${i})">↓</button>
+          </div>
+          <div style="margin-top: 0.5em;">
+            <button class="rename" onclick="rename(${i})">重命名</button>
+            <button class="delete" onclick="remove(${i})">删除</button>
+            <button class="undo" onclick="undo(${i})">撤销</button>
+          </div>
+          <button class="punch-button" onclick="punch(${i})">打卡</button>
         `;
         container.appendChild(div);
       });
