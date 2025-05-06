@@ -1,0 +1,204 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>打卡アプリ</title>
+  <style>
+    :root {
+      --bg-color: #f9f9f9;
+      --text-color: #000;
+      --card-color: #fff;
+    }
+    .dark {
+      --bg-color: #1e1e1e;
+      --text-color: #eee;
+      --card-color: #2a2a2a;
+    }
+    body {
+      font-family: sans-serif;
+      background: var(--bg-color);
+      color: var(--text-color);
+      margin: 0;
+      padding: 1em;
+      transition: background 0.3s, color 0.3s;
+    }
+    h1 { font-size: 1.5em; text-align: center; margin-bottom: 0.2em; }
+    #summary { text-align: center; color: var(--text-color); margin-bottom: 1em; }
+    .project {
+      background: var(--card-color);
+      padding: 1em;
+      margin: 1em 0;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .counts {
+      font-size: 0.9em;
+      color: var(--text-color);
+      margin-top: 0.5em;
+    }
+    button {
+      margin-top: 0.5em;
+      padding: 0.4em 0.8em;
+      font-size: 0.85em;
+      border: none;
+      border-radius: 4px;
+      background-color: #0077cc;
+      color: white;
+      margin-right: 0.3em;
+    }
+    .undo { background-color: #888; }
+    .rename { background-color: #555; }
+    .delete { background-color: #cc0000; }
+    .toggle-dark {
+      position: absolute;
+      right: 1em;
+      top: 1em;
+      font-size: 0.85em;
+      background: #444;
+    }
+    input {
+      padding: 0.4em;
+      margin-right: 0.5em;
+      width: 60%;
+    }
+  </style>
+</head>
+<body>
+  <button class="toggle-dark" onclick="toggleDark()">夜间/白天</button>
+  <h1>打卡アプリ</h1>
+  <div id="summary">今日合計: 0 回　|　総合計: 0 回</div>
+  <div>
+    <input id="newProjectName" placeholder="项目名を入力"/>
+    <button onclick="addProject()">追加</button>
+  </div>
+  <div id="projectList"></div>
+
+  <script>
+    const PROJECTS_KEY = "punchProjects_v3";
+    const DARK_KEY = "punchDarkMode";
+    const RESET_HOUR = 5;
+
+    let projects = JSON.parse(localStorage.getItem(PROJECTS_KEY)) || [];
+
+    function getTodayKey() {
+      const now = new Date();
+      let date = new Date(now);
+      if (now.getHours() < RESET_HOUR) {
+        date.setDate(now.getDate() - 1);
+      }
+      return date.toISOString().split('T')[0];
+    }
+
+    function addProject() {
+      const name = document.getElementById("newProjectName").value.trim();
+      if (!name) return;
+      projects.push({ name, total: 0, todayCounts: {} });
+      saveProjects();
+      document.getElementById("newProjectName").value = "";
+      render();
+    }
+
+    function saveProjects() {
+      localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
+    }
+
+    function punch(index) {
+      const today = getTodayKey();
+      const proj = projects[index];
+      proj.total++;
+      proj.todayCounts[today] = (proj.todayCounts[today] || 0) + 1;
+      saveProjects();
+      render();
+    }
+
+    function undo(index) {
+      const today = getTodayKey();
+      const proj = projects[index];
+      if ((proj.todayCounts[today] || 0) > 0) {
+        proj.total = Math.max(0, proj.total - 1);
+        proj.todayCounts[today]--;
+        saveProjects();
+        render();
+      }
+    }
+
+    function rename(index) {
+      const newName = prompt("新しい名前を入力:", projects[index].name);
+      if (newName !== null && newName.trim() !== "") {
+        projects[index].name = newName.trim();
+        saveProjects();
+        render();
+      }
+    }
+
+    function remove(index) {
+      if (confirm(`「${projects[index].name}」を削除しますか？`)) {
+        projects.splice(index, 1);
+        saveProjects();
+        render();
+      }
+    }
+
+    function moveUp(index) {
+      if (index > 0) {
+        [projects[index - 1], projects[index]] = [projects[index], projects[index - 1]];
+        saveProjects();
+        render();
+      }
+    }
+
+    function moveDown(index) {
+      if (index < projects.length - 1) {
+        [projects[index], projects[index + 1]] = [projects[index + 1], projects[index]];
+        saveProjects();
+        render();
+      }
+    }
+
+    function render() {
+      const today = getTodayKey();
+      let todaySum = 0, totalSum = 0;
+
+      const container = document.getElementById("projectList");
+      container.innerHTML = "";
+
+      projects.forEach((proj, i) => {
+        const todayCount = proj.todayCounts[today] || 0;
+        todaySum += todayCount;
+        totalSum += proj.total;
+
+        const div = document.createElement("div");
+        div.className = "project";
+        div.innerHTML = `
+          <strong>${proj.name}</strong>
+          <div class="counts">今日: ${todayCount} 回　|　総計: ${proj.total} 回</div>
+          <button onclick="punch(${i})">打卡</button>
+          <button class="undo" onclick="undo(${i})">撤销</button>
+          <button class="rename" onclick="rename(${i})">重命名</button>
+          <button class="delete" onclick="remove(${i})">删除</button>
+          <button onclick="moveUp(${i})">↑</button>
+          <button onclick="moveDown(${i})">↓</button>
+        `;
+        container.appendChild(div);
+      });
+
+      document.getElementById("summary").innerText = `今日合計: ${todaySum} 回　|　総合計: ${totalSum} 回`;
+    }
+
+    function toggleDark() {
+      const dark = document.body.classList.toggle("dark");
+      localStorage.setItem(DARK_KEY, dark ? "1" : "0");
+    }
+
+    function initTheme() {
+      if (localStorage.getItem(DARK_KEY) === "1") {
+        document.body.classList.add("dark");
+      }
+    }
+
+    initTheme();
+    render();
+  </script>
+</body>
+</html>
