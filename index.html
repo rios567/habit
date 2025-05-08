@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
@@ -110,17 +110,15 @@
   <script>
     const PROJECTS_KEY = "punchProjects_v7";
     const DARK_KEY = "punchDarkMode";
-    const RESET_HOUR = 5; // 凌晨5点重置
+    const RESET_HOUR = 0; // 0点重置
 
     let projects = JSON.parse(localStorage.getItem(PROJECTS_KEY)) || [];
 
     function getTodayKey() {
       const now = new Date();
-      // 如果当前时间是5点之前的部分，将日期调整为昨天
       if (now.getHours() < RESET_HOUR) {
         now.setDate(now.getDate() - 1);
       }
-      // 返回 ISO 字符串的日期部分
       return now.toISOString().split('T')[0];
     }
 
